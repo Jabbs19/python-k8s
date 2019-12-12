@@ -7,6 +7,9 @@ Also has a listImagesInAllCurrentPods(), which will get multiple containers in a
 
 ## **Installation** 
 
+Here is the link to the Python K8s install process:
+[K8s Python Client Install](https://github.com/kubernetes-client/python#kubernetes-python-client "K8s Python Client Install")
+
 ### **Requirements**
 Python 2.7 or 3.4+
 
