@@ -1,0 +1,6 @@
+*.pyc
+venv
+tmp
+.cache
+.coverage
+htmlcov
