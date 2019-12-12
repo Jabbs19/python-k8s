@@ -1,35 +1,38 @@
 # python-k8s
 Python K8s Client Watcher
 
-## **Requirements**
-Python 2.7 or 3.4+
+Has a few different functions in there right now.  A watcher, which will watch for image pull events.  A similar funtioning one that will just list all, but I believe that "watch" actually scoops up history too (up to hour?).
+
+Also has a listImagesInAllCurrentPods(), which will get multiple containers in a pod, and get the date they were "running" even if thats no longer stored in API resources.
 
 ## **Installation** 
 
+### **Requirements**
+Python 2.7 or 3.4+
+
+
+### Process
+
 Create a venv 
 
-### Install kubernetes client
+#### Install kubernetes client
 
-#### From source:
+##### From source:
 
 `git clone --recursive https://github.com/kubernetes-client/python.git`
 `cd python`
 `python setup.py install`
 
-#### From PyPi directly:
+##### From PyPi directly:
 
 `pip install kubernetes`
 
 
-## Running
+## **Running**
 `python3 watchPullEvents.py`
 
-## To Do:
+## To Do/Other:
 - Credentials and kubeconfig may need some additional work.  Using gcloud is easy, but need to inject in.  Maybe as part of config.ini passed to python.  I get some credentials errors occasionally, but I think its just gcloud creds expiring in my testing.
-
-
-## Other:
-
 - Still in pseudo-code in some cases
 - Manifest to BQ Field Mappings configurable
 - Sees all events, but only takes action on PULLED

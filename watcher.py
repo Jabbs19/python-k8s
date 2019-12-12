@@ -3,7 +3,9 @@ from kubernetes import client, config, watch
 #Add mapping between manifest fields and BQ fields
 BQ_MAPPING={"manifest" : "bqManifestField", 
             "image_create_date" : "bqImageCreateDate",
-            "namespace":"bqNameSpace"}
+            "namespace":"bqNameSpace"
+            #,"nextField":"bqNextField"
+            }
 
 
 def getManifestData(image, *args):
@@ -14,52 +16,24 @@ def getManifestData(image, *args):
 
   #Get SHA, Get Image Create Date
 
+
+  ### TEST DATA ###
+  manifestData = {"manifest":"sha14147104",
+                  "image_create_date":"12-12-19 10:00:00 AM",
+                  "namespace":"madeupnamespace"
+                  #,"nextField":"test11"
+                  }
+  
   #Return dict
-  manifestData = {"manifest":"sha14147104","image_create_date":"12-12-19 10:00:00 AM","namespace":"madeupnamespace"}
   return manifestData
 
 
-def constructData2(imageName, imagePullDate, manifestData, **kwargs):
-  #with manifestData, build BQ data structure
-  #Might need kwargs to tell it how to format/map Biq Query fields with manifest fields and values.
-  parseManifest = manifestData['manifest']
-  parseImageCreateDate = manifestData['image_create_date']
-  parseImageName = imageName
-  parseImagePullDate = str(imagePullDate)
-  
-  newPair={}
-  finalPair={}
-  first=0
-  for key in manifestData:
-      #print("key: %s , value: %s" % (key, bigQueryData[key]))
-    bqField = key
-    bqValue = manifestData[key]
-    newPair = {bqField:bqValue}
-
-    if first==0:
-      finalPair = newPair
-    else:
-      finalPair[key] = manifestData[key]
-      #finalPair = finalPair.update(newPair)
-
-    print("%s\t" % "Test KeyPair: " + str(newPair))
-    first = first + 1
-
-  print("%s\t" % "Final KeyPair: " + str(finalPair))
-  bigQueryData = {"bqManifestField":parseManifest,"bqImageCreateDate":parseImageCreateDate,"bqImageName":parseImageName,"bqImagePullDate":parseImagePullDate}
-  return bigQueryData
-
 def constructData(imageName, imagePullDate, manifestData, **kwargs):
-  #with manifestData, build BQ data structure
-  #Might need kwargs to tell it how to format/map Biq Query fields with manifest fields and values.
-  parseManifest = manifestData['manifest']
-  parseImageCreateDate = manifestData['image_create_date']
-  parseImageName = imageName
-  parseImagePullDate = str(imagePullDate)
+  #Uses manifestData and field mappings from kwargs to construct data as BQ needs it.
   
   newPair={}
   finalPair={}
-  first=0
+
   for key in manifestData:
       #print("key: %s , value: %s" % (key, bigQueryData[key]))
     mfstField = key
@@ -67,7 +41,7 @@ def constructData(imageName, imagePullDate, manifestData, **kwargs):
     #loop through kwargs to find bqFieldname from manifest fieldName
     for key, value in kwargs.items():
       if key == mfstField:
-        print("%s\t\t" % "Mapping Found: " + mfstField + "to:" + value)
+        print("%s\t" % "Field Mapping Found: " + mfstField + "to:" + value)
         bqField = value
         bqValue = manifestData[key]
    
@@ -76,20 +50,21 @@ def constructData(imageName, imagePullDate, manifestData, **kwargs):
         finalPair[key] = manifestData[key]
 
     print("%s\t" % "KeyValue added: " + str(newPair))
-    #print("Test KeyPair: " + str(newPair))
-    first = first + 1
 
   print("%s\t" % "Final KeyValues: " + str(finalPair))
-  #bigQueryData = {"bqManifestField":parseManifest,"bqImageCreateDate":parseImageCreateDate,"bqImageName":parseImageName,"bqImagePullDate":parseImagePullDate}
+
   bigQueryData = finalPair
+
   #Add regular Args, probably do this to original dict
   bigQueryData['bqImageName'] = imageName
   bigQueryData['bqImagePullDate'] = str(imagePullDate)
 
   return bigQueryData
 
+
+
 def insertData(bigQueryData, **kwargs):
-  #Insert data into BQ
+  #Inserts data into BQ
 
   #Connect to BQ
 
@@ -97,34 +72,84 @@ def insertData(bigQueryData, **kwargs):
   
   fields=""
   values=""
-  comma=0
+  commaHelper=0
 
   for key in bigQueryData:
     #print("key: %s , value: %s" % (key, bigQueryData[key]))
-    if comma==0:
+    if commaHelper==0:
       fields = key
       values = bigQueryData[key]
     else:
       fields = fields + ", " + key
       values = values + ", " + bigQueryData[key]
-    comma = comma + 1
+    commaHelper += 1
 
-  print("%s\t\t" % "Test Fields: " + fields)
-  print("%s\t\t" % "Test Values: " + values)
+  print("%s\t\t" % "Parsed Fields: " + fields)
+  print("%s\t\t" % "Parsed Values: " + values)
 
-  #Build insert statement
-    #Using the data structure created previously, build the insert statement
+  #Build insert statement, u the data structure created previously.
   INSERT_STATEMENT = "INSERT INTO biqQueryTable (" + fields + ") VALUES (" + values + ")"
+  
+  #Execute Insert Statement
   print("%s\t" % "Test Insert Statement: " + INSERT_STATEMENT)
   print()
 
+
+
 def listPullEvents():
-  
+  #No watching.  Pulls anything in resource.  May not be neccessary since watch pulls history too?
+  v1=client.CoreV1Api()
+  print("Listing pods with their Images:")
+  ret = v1.list_event_for_all_namespaces(watch=False)
+  for i in ret.items:
+    if i.reason == "Pulled":
+      print()
+      print("##### IMAGE PULL EVENT FOUND ####")
+
+      #Parse the "message" for imagename
+      imageNameRaw = i.message
+      startIndex = imageNameRaw.find('\"') + 1
+      stopIndex = imageNameRaw.find('\"',startIndex+1)
+      imageName = imageNameRaw[startIndex:stopIndex]
+      print("%s\t" % "Test ImageName: " + imageName)
+
+      #Use EventLastTimestamp for ImagePullDate
+      imagePullDate = i.last_timestamp
+      print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+
+
+def listImagesInAllCurrentPods ():
+  #Lists the images running in all pods.  Will catch sidecars (2+ cont in pod)
+  v1=client.CoreV1Api()
+  print("Listing pods with their Images:")
+  ret = v1.list_pod_for_all_namespaces(watch=False)
+  for i in ret.items:
+      containers = i.spec.containers
+      statuses = i.status.container_statuses
+
+      startedAt = i.spec
+      container_count = range(len(containers))
+
+      for j in container_count:
+
+        single_image_id = containers[j].image
+
+        if str(statuses[j].state.running) == "None":
+          startedAt = "None"
+        else:
+          startedAt = statuses[j].state.running.started_at
+
+       
+        print("%s\t%s\t%s\t%s" % ( i.metadata.namespace, i.metadata.name, single_image_id,startedAt))
+
+        j += 1
+
 
 def watchPullEvents():
-
+  #Watches events.  I believe this also pulls whatever is in resource.
   v1 = client.CoreV1Api()
-  #v1= client.V1Container()
+
+  #Counters (just used to stop a runaway train and look at noise) - can remove.
   countAllEventsMax = 1000
   countAllEventsCurrent = 1
   countImagePullEventsMax = 100
@@ -137,26 +162,27 @@ def watchPullEvents():
       if event['object'].reason == "Pulled":
         print()
         print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
+        
         #Parse the "message" for imagename
         imageNameRaw = event['object'].message
         startIndex = imageNameRaw.find('\"') + 1
         stopIndex = imageNameRaw.find('\"',startIndex+1)
         imageName = imageNameRaw[startIndex:stopIndex]
-
-        imagePullDate = event['object'].last_timestamp
-
         print("%s\t" % "Test ImageName: " + imageName)
+
+        #Use EventLastTimestamp for ImagePullDate
+        imagePullDate = event['object'].last_timestamp
         print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
 
-
+        #Get Manifest Data (SHA, ImageCreateDate,etc.)
         testManifestData = getManifestData(imageName,'manifest','image_create_date')
         print("%s\t" % "Test Manifest Data: " + str(testManifestData))
 
-        #set BQ map structure
-       # BQ_MAPPING={"manifest" : "bqManifestField", "image_create_date" : "bqImageCreateDate"}
+        #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
         testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
         print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
 
+        #Insert data into BQ.
         insertData(testBiqQueryData)
 
         if countImagePullEventsCurrent == countImagePullEventsMax:
@@ -171,13 +197,15 @@ def watchPullEvents():
   print("%s\t" % "Finished Event Stream.")
 
 
-def main():
-    # Configs can be set in Configuration class directly or using helper
-    # utility. If no argument provided, the config will be loaded from
-    # default location.
-    config.load_kube_config()
 
-    watchPullEvents()
+def main():
+ 
+  config.load_kube_config()
+
+  #listPullEvents()
+  listImagesInAllCurrentPods()
+  #watchPullEvents()
+
 
 
 if __name__ == '__main__':
