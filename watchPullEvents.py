@@ -29,8 +29,7 @@ def getManifestData(image, *args):
 
 
 def constructData(imageName, imagePullDate, manifestData, **kwargs):
-  #with manifestData, build BQ data structure
-  #Might need kwargs to tell it how to format/map Biq Query fields with manifest fields and values.
+  #Uses manifestData and field mappings from kwargs to construct data as BQ needs it.
   
   newPair={}
   finalPair={}
@@ -62,6 +61,8 @@ def constructData(imageName, imagePullDate, manifestData, **kwargs):
 
   return bigQueryData
 
+
+
 def insertData(bigQueryData, **kwargs):
   #Inserts data into BQ
 
@@ -71,17 +72,17 @@ def insertData(bigQueryData, **kwargs):
   
   fields=""
   values=""
-  comma=0
+  commaHelper=0
 
   for key in bigQueryData:
     #print("key: %s , value: %s" % (key, bigQueryData[key]))
-    if comma==0:
+    if commaHelper==0:
       fields = key
       values = bigQueryData[key]
     else:
       fields = fields + ", " + key
       values = values + ", " + bigQueryData[key]
-    comma = comma + 1
+    commaHelper += 1
 
   print("%s\t\t" % "Parsed Fields: " + fields)
   print("%s\t\t" % "Parsed Values: " + values)
@@ -95,58 +96,86 @@ def insertData(bigQueryData, **kwargs):
 
 
 
+def listPullEvents():
+  #No watching.  Pulls anything in resource.  May not be neccessary since watch pulls history too?
+  v1=client.CoreV1Api()
+  print("Listing pods with their Images:")
+  ret = v1.list_event_for_all_namespaces(watch=False)
+  for i in ret.items:
+    if i.reason == "Pulled":
+      print()
+      print("##### IMAGE PULL EVENT FOUND ####")
+
+      #Parse the "message" for imagename
+      imageNameRaw = i.message
+      startIndex = imageNameRaw.find('\"') + 1
+      stopIndex = imageNameRaw.find('\"',startIndex+1)
+      imageName = imageNameRaw[startIndex:stopIndex]
+      print("%s\t" % "Test ImageName: " + imageName)
+
+      #Use EventLastTimestamp for ImagePullDate
+      imagePullDate = i.last_timestamp
+      print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+
+
+def watchPullEvents():
+  #Watches events.  I believe this also pulls whatever is in resource.
+  v1 = client.CoreV1Api()
+
+  #Counters (just used to stop a runaway train and look at noise) - can remove.
+  countAllEventsMax = 1000
+  countAllEventsCurrent = 1
+  countImagePullEventsMax = 100
+  countImagePullEventsCurrent = 1
+
+  w = watch.Watch()
+  for event in w.stream(v1.list_event_for_all_namespaces):
+  #for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=100):
+      #if event['object'].involved_object.kind == "Pod":
+      if event['object'].reason == "Pulled":
+        print()
+        print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
+        
+        #Parse the "message" for imagename
+        imageNameRaw = event['object'].message
+        startIndex = imageNameRaw.find('\"') + 1
+        stopIndex = imageNameRaw.find('\"',startIndex+1)
+        imageName = imageNameRaw[startIndex:stopIndex]
+        print("%s\t" % "Test ImageName: " + imageName)
+
+        #Use EventLastTimestamp for ImagePullDate
+        imagePullDate = event['object'].last_timestamp
+        print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+
+        #Get Manifest Data (SHA, ImageCreateDate,etc.)
+        testManifestData = getManifestData(imageName,'manifest','image_create_date')
+        print("%s\t" % "Test Manifest Data: " + str(testManifestData))
+
+        #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
+        testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
+        print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
+
+        #Insert data into BQ.
+        insertData(testBiqQueryData)
+
+        if countImagePullEventsCurrent == countImagePullEventsMax:
+            w.stop()
+        countImagePullEventsCurrent += 1
+
+      if countAllEventsCurrent == countAllEventsMax:
+          w.stop()
+      print("Event Counter: "+ str(countAllEventsCurrent) + " (" + event['object'].reason + ")")
+      countAllEventsCurrent += 1
+
+  print("%s\t" % "Finished Event Stream.")
+
+
+
 def main():
  
-    config.load_kube_config()
+  config.load_kube_config()
 
-    v1 = client.CoreV1Api()
-
-    #Counters (just used to stop a runaway train and look at noise) - can remove.
-    countAllEventsMax = 1000
-    countAllEventsCurrent = 1
-    countImagePullEventsMax = 100
-    countImagePullEventsCurrent = 1
-
-    w = watch.Watch()
-    for event in w.stream(v1.list_event_for_all_namespaces):
-    #for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=100):
-        #if event['object'].involved_object.kind == "Pod":
-        if event['object'].reason == "Pulled":
-          print()
-          print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
-          
-          #Parse the "message" for imagename
-          imageNameRaw = event['object'].message
-          startIndex = imageNameRaw.find('\"') + 1
-          stopIndex = imageNameRaw.find('\"',startIndex+1)
-          imageName = imageNameRaw[startIndex:stopIndex]
-          print("%s\t" % "Test ImageName: " + imageName)
-
-          #Use EventLastTimestamp for ImagePullDate
-          imagePullDate = event['object'].last_timestamp
-          print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
-
-          #Get Manifest Data (SHA, ImageCreateDate,etc.)
-          testManifestData = getManifestData(imageName,'manifest','image_create_date')
-          print("%s\t" % "Test Manifest Data: " + str(testManifestData))
-
-          #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
-          testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
-          print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
-
-          #Insert data into BQ.
-          insertData(testBiqQueryData)
-
-          if countImagePullEventsCurrent == countImagePullEventsMax:
-              w.stop()
-       	  countImagePullEventsCurrent += 1
-
-        if countAllEventsCurrent == countAllEventsMax:
-            w.stop()
-        print("Event Counter: "+ str(countAllEventsCurrent) + " (" + event['object'].reason + ")")
-        countAllEventsCurrent += 1
-
-    print("%s\t" % "Finished Event Stream.")
+  watchPullEvents()
 
 
 if __name__ == '__main__':

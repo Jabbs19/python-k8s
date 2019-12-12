@@ -118,6 +118,57 @@ def insertData(bigQueryData, **kwargs):
   print("%s\t" % "Test Insert Statement: " + INSERT_STATEMENT)
   print()
 
+def listPullEvents():
+  
+
+def watchPullEvents():
+
+  v1 = client.CoreV1Api()
+  #v1= client.V1Container()
+  countAllEventsMax = 1000
+  countAllEventsCurrent = 1
+  countImagePullEventsMax = 100
+  countImagePullEventsCurrent = 1
+
+  w = watch.Watch()
+  for event in w.stream(v1.list_event_for_all_namespaces):
+  #for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=100):
+      #if event['object'].involved_object.kind == "Pod":
+      if event['object'].reason == "Pulled":
+        print()
+        print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
+        #Parse the "message" for imagename
+        imageNameRaw = event['object'].message
+        startIndex = imageNameRaw.find('\"') + 1
+        stopIndex = imageNameRaw.find('\"',startIndex+1)
+        imageName = imageNameRaw[startIndex:stopIndex]
+
+        imagePullDate = event['object'].last_timestamp
+
+        print("%s\t" % "Test ImageName: " + imageName)
+        print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+
+
+        testManifestData = getManifestData(imageName,'manifest','image_create_date')
+        print("%s\t" % "Test Manifest Data: " + str(testManifestData))
+
+        #set BQ map structure
+       # BQ_MAPPING={"manifest" : "bqManifestField", "image_create_date" : "bqImageCreateDate"}
+        testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
+        print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
+
+        insertData(testBiqQueryData)
+
+        if countImagePullEventsCurrent == countImagePullEventsMax:
+            w.stop()
+        countImagePullEventsCurrent += 1
+
+      if countAllEventsCurrent == countAllEventsMax:
+          w.stop()
+      print("Event Counter: "+ str(countAllEventsCurrent) + " (" + event['object'].reason + ")")
+      countAllEventsCurrent += 1
+
+  print("%s\t" % "Finished Event Stream.")
 
 
 def main():
@@ -126,52 +177,7 @@ def main():
     # default location.
     config.load_kube_config()
 
-    v1 = client.CoreV1Api()
-    #v1= client.V1Container()
-    countAllEventsMax = 1000
-    countAllEventsCurrent = 1
-    countImagePullEventsMax = 100
-    countImagePullEventsCurrent = 1
-
-    w = watch.Watch()
-    for event in w.stream(v1.list_event_for_all_namespaces):
-    #for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=100):
-        #if event['object'].involved_object.kind == "Pod":
-        if event['object'].reason == "Pulled":
-          print()
-          print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
-          #Parse the "message" for imagename
-          imageNameRaw = event['object'].message
-          startIndex = imageNameRaw.find('\"') + 1
-          stopIndex = imageNameRaw.find('\"',startIndex+1)
-          imageName = imageNameRaw[startIndex:stopIndex]
-
-          imagePullDate = event['object'].last_timestamp
-
-          print("%s\t" % "Test ImageName: " + imageName)
-          print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
-
-
-          testManifestData = getManifestData(imageName,'manifest','image_create_date')
-          print("%s\t" % "Test Manifest Data: " + str(testManifestData))
-
-          #set BQ map structure
-         # BQ_MAPPING={"manifest" : "bqManifestField", "image_create_date" : "bqImageCreateDate"}
-          testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
-          print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
-
-          insertData(testBiqQueryData)
-
-          if countImagePullEventsCurrent == countImagePullEventsMax:
-              w.stop()
-       	  countImagePullEventsCurrent += 1
-
-        if countAllEventsCurrent == countAllEventsMax:
-            w.stop()
-        print("Event Counter: "+ str(countAllEventsCurrent) + " (" + event['object'].reason + ")")
-        countAllEventsCurrent += 1
-
-    print("%s\t" % "Finished Event Stream.")
+    watchPullEvents()
 
 
 if __name__ == '__main__':
