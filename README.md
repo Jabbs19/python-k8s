@@ -24,8 +24,11 @@ Create a venv
 ## Running
 `python3 watchPullEvents.py`
 
+## To Do:
+- Credentials and kubeconfig may need some additional work.  Using gcloud is easy, but need to inject in.  Maybe as part of config.ini passed to python.  I get some credentials errors occasionally, but I think its just gcloud creds expiring in my testing.
 
-Other:
+
+## Other:
 
 - Still in pseudo-code in some cases
 - Manifest to BQ Field Mappings configurable
