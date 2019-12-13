@@ -1,12 +1,5 @@
 from kubernetes import client, config, watch
-
-#Add mapping between manifest fields and BQ fields
-BQ_MAPPING={"manifest" : "bqManifestField", 
-            "image_create_date" : "bqImageCreateDate",
-            "namespace":"bqNameSpace"
-            #,"nextField":"bqNextField"
-            }
-
+from . import mapping
 
 def getManifestData(image, *args):
   #Use image name to get manifest data
@@ -179,6 +172,8 @@ def watchPullEvents():
         print("%s\t" % "Test Manifest Data: " + str(testManifestData))
 
         #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
+        BQ_MAPPING=mapping.getDBMapping('globalImagePullEvents')
+
         testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
         print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
 
@@ -195,18 +190,3 @@ def watchPullEvents():
       countAllEventsCurrent += 1
 
   print("%s\t" % "Finished Event Stream.")
-
-
-
-def main():
- 
-  config.load_kube_config()
-
-  #listPullEvents()
-  #listImagesInAllCurrentPods()
-  watchPullEvents()
-
-
-
-if __name__ == '__main__':
-    main()

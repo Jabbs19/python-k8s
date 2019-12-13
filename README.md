@@ -32,7 +32,7 @@ Create a venv
 
 
 ## **Running**
-`python3 watcher/core.py`
+`python3 -m watcher.main`
 
 Uncomment 1 of the 3 functions in the main() function to either listImagePullEvents, getAllImagesInCurrentPods or watchImagePullEvents.
 Do a `kubectl run` of `helm install` to create pods and trigger events.
