@@ -12,8 +12,7 @@ def getManifestData(image, *args):
 
   ### TEST DATA ###
   manifestData = {"manifest":"sha14147104",
-                  "image_create_date":"12-12-19 10:00:00 AM",
-                  "namespace":"madeupnamespace"
+                  "image_create_date":"12-12-19 10:00:00 AM"
                   #,"nextField":"test11"
                   }
   
@@ -21,7 +20,7 @@ def getManifestData(image, *args):
   return manifestData
 
 
-def constructData(imageName, imagePullDate, manifestData, **kwargs):
+def constructData(imageName, imagePullDate, eventNamespace, manifestData, **kwargs):
   #Uses manifestData and field mappings from kwargs to construct data as BQ needs it.
   
   newPair={}
@@ -51,6 +50,7 @@ def constructData(imageName, imagePullDate, manifestData, **kwargs):
   #Add regular Args, probably do this to original dict
   bigQueryData['bqImageName'] = imageName
   bigQueryData['bqImagePullDate'] = str(imagePullDate)
+  bigQueryData['bqNamespace'] = eventNamespace
 
   return bigQueryData
 
@@ -167,6 +167,10 @@ def watchPullEvents():
         imagePullDate = event['object'].last_timestamp
         print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
 
+        #Namespace
+        eventNamespace = event['object'].involved_object.namespace
+        print("%s\t" % "Test namespace: " + str(eventNamespace))
+
         #Get Manifest Data (SHA, ImageCreateDate,etc.)
         testManifestData = getManifestData(imageName,'manifest','image_create_date')
         print("%s\t" % "Test Manifest Data: " + str(testManifestData))
@@ -174,7 +178,7 @@ def watchPullEvents():
         #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
         BQ_MAPPING=mapping.getDBMapping('globalImagePullEvents')
 
-        testBiqQueryData = constructData(imageName, imagePullDate, testManifestData,**BQ_MAPPING)
+        testBiqQueryData = constructData(imageName, imagePullDate, eventNamespace, testManifestData,**BQ_MAPPING)
         print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
 
         #Insert data into BQ.
