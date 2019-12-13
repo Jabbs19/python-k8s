@@ -203,8 +203,8 @@ def main():
   config.load_kube_config()
 
   #listPullEvents()
-  listImagesInAllCurrentPods()
-  #watchPullEvents()
+  #listImagesInAllCurrentPods()
+  watchPullEvents()
 
 
 

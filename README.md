@@ -3,7 +3,7 @@ Python K8s Client Watcher
 
 Has a few different functions in there right now.  A watcher, which will watch for image pull events.  A similar funtioning one that will just list all, but I believe that "watch" actually scoops up history too (up to hour?).
 
-Also has a listImagesInAllCurrentPods(), which will get multiple containers in a pod, and get the date they were "running" even if thats no longer stored in API resources.
+Also has a listImagesInAllCurrentPods(), which will get multiple containers in a pod, and get the date they were "running" even if thats no longer stored in API resources.  Right now, just change the function in main() to change what it does.
 
 ## **Installation** 
 
@@ -33,6 +33,8 @@ Create a venv
 
 ## **Running**
 `python3 watchPullEvents.py`
+
+Uncomment 1 of the 3 functions in the main() function to either listImagePullEvents, getAllImagesInCurrentPods or watchImagePullEvents.
 
 ## To Do/Other:
 - Credentials and kubeconfig may need some additional work.  Using gcloud is easy, but need to inject in.  Maybe as part of config.ini passed to python.  I get some credentials errors occasionally, but I think its just gcloud creds expiring in my testing.
