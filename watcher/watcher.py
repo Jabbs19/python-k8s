@@ -190,7 +190,7 @@ def watchPullEvents():
 
       if countAllEventsCurrent == countAllEventsMax:
           w.stop()
-      print("Event Counter: "+ str(countAllEventsCurrent) + " (" + event['object'].reason + ")")
+      print("Event Counter: "+ str(countAllEventsCurrent) + " (Type: " + event['object'].reason + ")")
       countAllEventsCurrent += 1
 
   print("%s\t" % "Finished Event Stream.")
