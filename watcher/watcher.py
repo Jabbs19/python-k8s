@@ -1,5 +1,5 @@
 from kubernetes import client, config, watch
-from . import mapping
+from . import configurations
 
 def getManifestData(image, *args):
   #Use image name to get manifest data
@@ -33,7 +33,7 @@ def constructData(imageName, imagePullDate, eventNamespace, manifestData, **kwar
     #loop through kwargs to find bqFieldname from manifest fieldName
     for key, value in kwargs.items():
       if key == mfstField:
-        print("%s\t" % "Field Mapping Found: " + mfstField + "to:" + value)
+        if configurations.debugMode: print("%s\t" % "Field Mapping Found: " + mfstField + "to:" + value)
         bqField = value
         bqValue = manifestData[key]
    
@@ -41,9 +41,9 @@ def constructData(imageName, imagePullDate, eventNamespace, manifestData, **kwar
 
         finalPair[key] = manifestData[key]
 
-    print("%s\t" % "KeyValue added: " + str(newPair))
+    if configurations.debugMode: print("%s\t" % "KeyValue added: " + str(newPair))
 
-  print("%s\t" % "Final KeyValues: " + str(finalPair))
+  if configurations.debugMode: print("%s\t" % "Final KeyValues: " + str(finalPair))
 
   bigQueryData = finalPair
 
@@ -77,14 +77,14 @@ def insertData(bigQueryData, **kwargs):
       values = values + ", " + bigQueryData[key]
     commaHelper += 1
 
-  print("%s\t\t" % "Parsed Fields: " + fields)
-  print("%s\t\t" % "Parsed Values: " + values)
+  if configurations.debugMode: print("%s\t\t" % "Parsed Fields: " + fields)
+  if configurations.debugMode: print("%s\t\t" % "Parsed Values: " + values)
 
   #Build insert statement, u the data structure created previously.
   INSERT_STATEMENT = "INSERT INTO biqQueryTable (" + fields + ") VALUES (" + values + ")"
   
   #Execute Insert Statement
-  print("%s\t" % "Test Insert Statement: " + INSERT_STATEMENT)
+  if configurations.debugMode: print("%s\t" % "Test Insert Statement: " + INSERT_STATEMENT)
   print()
 
 
@@ -96,19 +96,20 @@ def listPullEvents():
   ret = v1.list_event_for_all_namespaces(watch=False)
   for i in ret.items:
     if i.reason == "Pulled":
-      print()
-      print("##### IMAGE PULL EVENT FOUND ####")
+      if configurations.debugMode:
+        print()
+        print("##### IMAGE PULL EVENT FOUND ####")
 
       #Parse the "message" for imagename
       imageNameRaw = i.message
       startIndex = imageNameRaw.find('\"') + 1
       stopIndex = imageNameRaw.find('\"',startIndex+1)
       imageName = imageNameRaw[startIndex:stopIndex]
-      print("%s\t" % "Test ImageName: " + imageName)
+      if configurations.debugMode: print("%s\t" % "Test ImageName: " + imageName)
 
       #Use EventLastTimestamp for ImagePullDate
       imagePullDate = i.last_timestamp
-      print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+      if configurations.debugMode: print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
 
 
 def listImagesInAllCurrentPods ():
@@ -133,7 +134,7 @@ def listImagesInAllCurrentPods ():
           startedAt = statuses[j].state.running.started_at
 
        
-        print("%s\t%s\t%s\t%s" % ( i.metadata.namespace, i.metadata.name, single_image_id,startedAt))
+        if configurations.debugMode: print("%s\t%s\t%s\t%s" % ( i.metadata.namespace, i.metadata.name, single_image_id,startedAt))
 
         j += 1
 
@@ -153,44 +154,41 @@ def watchPullEvents():
   #for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=100):
       #if event['object'].involved_object.kind == "Pod":
       if event['object'].reason == "Pulled":
-        print()
-        print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
-        
-        #Parse the "message" for imagename
+         #Parse the "message" for imagename
         imageNameRaw = event['object'].message
         startIndex = imageNameRaw.find('\"') + 1
         stopIndex = imageNameRaw.find('\"',startIndex+1)
         imageName = imageNameRaw[startIndex:stopIndex]
-        print("%s\t" % "Test ImageName: " + imageName)
+        if configurations.debugMode:
+          print()
+          print("##### IMAGE PULL EVENT (" + str(countImagePullEventsCurrent) +") FOUND ####")
+          print("%s\t" % "Test ImageName: " + imageName)
 
         #Use EventLastTimestamp for ImagePullDate
         imagePullDate = event['object'].last_timestamp
-        print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
+        if configurations.debugMode: print("%s\t" % "Test ImagePullDate: " + str(imagePullDate))
 
         #Namespace
         eventNamespace = event['object'].involved_object.namespace
-        print("%s\t" % "Test namespace: " + str(eventNamespace))
+        if configurations.debugMode: print("%s\t" % "Test namespace: " + str(eventNamespace))
 
         #Get Manifest Data (SHA, ImageCreateDate,etc.)
         testManifestData = getManifestData(imageName,'manifest','image_create_date')
-        print("%s\t" % "Test Manifest Data: " + str(testManifestData))
+        if configurations.debugMode: print("%s\t" % "Test Manifest Data: " + str(testManifestData))
 
         #Construct Data to match BQ. Uses BQ_MAPPING Kwarg set at top. Should be config.
-        BQ_MAPPING=mapping.getDBMapping('globalImagePullEvents')
-
+        BQ_MAPPING=configurations.getDBMapping('globalImagePullEvents')
         testBiqQueryData = constructData(imageName, imagePullDate, eventNamespace, testManifestData,**BQ_MAPPING)
-        print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
+        if configurations.debugMode: print("%s\t" % "Test BiqQuery Data: " + str(testBiqQueryData))
 
         #Insert data into BQ.
         insertData(testBiqQueryData)
 
-        if countImagePullEventsCurrent == countImagePullEventsMax:
-            w.stop()
+        if countImagePullEventsCurrent == countImagePullEventsMax: w.stop()
         countImagePullEventsCurrent += 1
 
-      if countAllEventsCurrent == countAllEventsMax:
-          w.stop()
-      print("Event Counter: "+ str(countAllEventsCurrent) + " (Type: " + event['object'].reason + ")")
+      if countAllEventsCurrent == countAllEventsMax: w.stop()
+      if configurations.debugMode: print("Event Counter: "+ str(countAllEventsCurrent) + " (Type: " + event['object'].reason + ")")
       countAllEventsCurrent += 1
 
   print("%s\t" % "Finished Event Stream.")
