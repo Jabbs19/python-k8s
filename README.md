@@ -36,12 +36,13 @@ Create a venv
 
 Uncomment 1 of the 3 functions in the main() function to either listImagePullEvents, getAllImagesInCurrentPods or watchImagePullEvents.
 Do a `kubectl run` of `helm install` to create pods and trigger events.
-Change DebugMode in configurations.py to stop printing.
+Change `DebugMode` in configurations.py to stop printing.
+DB Mapping configurations can be put in configurations.py
 
 ## To Do/Other:
-- Credentials and kubeconfig may need some additional work.  Using gcloud is easy, but need to inject in.  Maybe as part of config.ini passed to python.  I get some credentials errors occasionally, but I think its just gcloud creds expiring in my testing.
+- Credentials and kubeconfig may need some additional work.  Using `gcloud` is easy, but need to inject in.  Maybe as part of config.ini passed to python.  I get some credentials errors occasionally, but I think its just gcloud creds expiring in my testing.
 - Still in pseudo-code in some cases
-- Manifest to BQ Field Mappings configurable
 - Sees all events, but only takes action on PULLED
-- Ultimately, we should just filter out other events (i.e. REASONs)
+- Ultimately, can we filter out other events with field_selectors instead of reading events, and using REASON?
+	- Anything to reduce the amount of events watched to begin with?
 
